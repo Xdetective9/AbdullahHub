@@ -21,7 +21,7 @@ PyJWT==2.8.0
 python-dotenv==1.0.0
 
 # File Processing
-Pillow==10.0.1
+Pillow==9.5.0
 python-magic-bin==0.4.14  # Use binary version
 filetype==1.2.0
 
@@ -51,7 +51,7 @@ email-validator==2.0.0
 psutil==5.9.6
 
 # For RemoveBG Plugin
-removebg==1.0.2
+removebg
 
 # Testing (optional)
 pytest==7.4.2
