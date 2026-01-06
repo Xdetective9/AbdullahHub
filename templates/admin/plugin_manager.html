@@ -1,0 +1,543 @@
+{% extends "admin/admin_base.html" %}
+
+{% block title %}Plugin Manager - Admin{% endblock %}
+
+{% block admin_content %}
+<div class="plugin-manager-container">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2><i class="fas fa-puzzle-piece me-2"></i>Plugin Manager</h2>
+        <a href="{{ url_for('admin_upload_plugin') }}" class="btn btn-primary">
+            <i class="fas fa-plus me-2"></i>Upload Plugin
+        </a>
+    </div>
+    
+    <!-- Filters -->
+    <div class="card mb-4">
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-3">
+                    <input type="text" class="form-control" placeholder="Search plugins..." id="searchInput">
+                </div>
+                <div class="col-md-2">
+                    <select class="form-control" id="statusFilter">
+                        <option value="">All Status</option>
+                        <option value="approved">Approved</option>
+                        <option value="pending">Pending</option>
+                        <option value="archived">Archived</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-control" id="categoryFilter">
+                        <option value="">All Categories</option>
+                        <option value="Image Processing">Image Processing</option>
+                        <option value="Data Analysis">Data Analysis</option>
+                        <option value="Web Scraping">Web Scraping</option>
+                        <option value="Automation">Automation</option>
+                        <option value="AI/ML">AI/ML</option>
+                        <option value="Utilities">Utilities</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <select class="form-control" id="sortFilter">
+                        <option value="newest">Newest First</option>
+                        <option value="oldest">Oldest First</option>
+                        <option value="name">Name A-Z</option>
+                        <option value="downloads">Most Downloads</option>
+                        <option value="rating">Highest Rating</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <button class="btn btn-outline-secondary w-100" onclick="resetFilters()">
+                        <i class="fas fa-redo me-2"></i>Reset Filters
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Plugins Table -->
+    <div class="card">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-hover" id="pluginsTable">
+                    <thead>
+                        <tr>
+                            <th>Plugin</th>
+                            <th>Author</th>
+                            <th>Category</th>
+                            <th>Status</th>
+                            <th>Downloads</th>
+                            <th>Rating</th>
+                            <th>Uploaded</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for plugin in plugins %}
+                        <tr data-category="{{ plugin.category }}" data-status="{{ 'approved' if plugin.is_approved else 'pending' }}">
+                            <td>
+                                <div class="d-flex align-items-center">
+                                    <div class="plugin-icon me-3">
+                                        <i class="fas fa-puzzle-piece fa-2x"></i>
+                                    </div>
+                                    <div>
+                                        <strong>{{ plugin.name }}</strong><br>
+                                        <small class="text-muted">v{{ plugin.version }}</small>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>{{ plugin.author or 'Unknown' }}</td>
+                            <td>
+                                <span class="badge bg-info">{{ plugin.category or 'General' }}</span>
+                            </td>
+                            <td>
+                                {% if plugin.is_archived %}
+                                <span class="badge bg-secondary">Archived</span>
+                                {% elif plugin.is_approved %}
+                                <span class="badge bg-success">Approved</span>
+                                {% else %}
+                                <span class="badge bg-warning">Pending</span>
+                                {% endif %}
+                            </td>
+                            <td>{{ plugin.download_count }}</td>
+                            <td>
+                                <div class="rating">
+                                    {% for i in range(5) %}
+                                    <i class="fas fa-star {% if i < plugin.rating|int %}text-warning{% else %}text-muted{% endif %}"></i>
+                                    {% endfor %}
+                                    <small class="ms-1">({{ plugin.rating|round(1) }})</small>
+                                </div>
+                            </td>
+                            <td>{{ plugin.created_at.strftime('%Y-%m-%d') }}</td>
+                            <td>
+                                <div class="btn-group">
+                                    <button class="btn btn-sm btn-outline-primary" 
+                                            onclick="viewPlugin({{ plugin.id }})"
+                                            data-bs-toggle="tooltip" title="View Details">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    {% if not plugin.is_approved %}
+                                    <button class="btn btn-sm btn-outline-success"
+                                            onclick="approvePlugin({{ plugin.id }})"
+                                            data-bs-toggle="tooltip" title="Approve">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    {% if plugin.is_approved and plugin.is_active %}
+                                    <button class="btn btn-sm btn-outline-warning"
+                                            onclick="togglePlugin({{ plugin.id }})"
+                                            data-bs-toggle="tooltip" title="Disable">
+                                        <i class="fas fa-toggle-on"></i>
+                                    </button>
+                                    {% elif plugin.is_approved and not plugin.is_active %}
+                                    <button class="btn btn-sm btn-outline-warning"
+                                            onclick="togglePlugin({{ plugin.id }})"
+                                            data-bs-toggle="tooltip" title="Enable">
+                                        <i class="fas fa-toggle-off"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <button class="btn btn-sm btn-outline-danger"
+                                            onclick="deletePlugin({{ plugin.id }})"
+                                            data-bs-toggle="tooltip" title="Delete">
+                                        <i class="fas fa-trash"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% else %}
+                        <tr>
+                            <td colspan="8" class="text-center py-4">
+                                <i class="fas fa-puzzle-piece fa-3x text-muted mb-3"></i>
+                                <p>No plugins found</p>
+                                <a href="{{ url_for('admin_upload_plugin') }}" class="btn btn-primary">
+                                    <i class="fas fa-plus me-2"></i>Upload First Plugin
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            {% if plugins|length > 0 %}
+            <nav aria-label="Plugin pagination" class="mt-4">
+                <ul class="pagination justify-content-center">
+                    <li class="page-item disabled">
+                        <a class="page-link" href="#" tabindex="-1">Previous</a>
+                    </li>
+                    <li class="page-item active"><a class="page-link" href="#">1</a></li>
+                    <li class="page-item"><a class="page-link" href="#">2</a></li>
+                    <li class="page-item"><a class="page-link" href="#">3</a></li>
+                    <li class="page-item">
+                        <a class="page-link" href="#">Next</a>
+                    </li>
+                </ul>
+            </nav>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Plugin Details Modal -->
+<div class="modal fade" id="pluginModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Plugin Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body" id="pluginDetails">
+                <!-- Dynamic content -->
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Delete Confirmation Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Delete</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete this plugin? This action cannot be undone.</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle me-2"></i>All plugin data and installations will be permanently deleted.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmDelete">Delete Plugin</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let currentPluginId = null;
+
+// Filter plugins
+document.getElementById('searchInput').addEventListener('input', filterPlugins);
+document.getElementById('statusFilter').addEventListener('change', filterPlugins);
+document.getElementById('categoryFilter').addEventListener('change', filterPlugins);
+document.getElementById('sortFilter').addEventListener('change', sortPlugins);
+
+function filterPlugins() {
+    const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+    const statusFilter = document.getElementById('statusFilter').value;
+    const categoryFilter = document.getElementById('categoryFilter').value;
+    
+    const rows = document.querySelectorAll('#pluginsTable tbody tr');
+    
+    rows.forEach(row => {
+        let show = true;
+        
+        // Search filter
+        if (searchTerm) {
+            const pluginName = row.querySelector('strong').textContent.toLowerCase();
+            const author = row.cells[1].textContent.toLowerCase();
+            if (!pluginName.includes(searchTerm) && !author.includes(searchTerm)) {
+                show = false;
+            }
+        }
+        
+        // Status filter
+        if (statusFilter && row.dataset.status !== statusFilter) {
+            show = false;
+        }
+        
+        // Category filter
+        if (categoryFilter && row.dataset.category !== categoryFilter) {
+            show = false;
+        }
+        
+        row.style.display = show ? '' : 'none';
+    });
+}
+
+function sortPlugins() {
+    const sortBy = document.getElementById('sortFilter').value;
+    const tbody = document.querySelector('#pluginsTable tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    
+    rows.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch(sortBy) {
+            case 'name':
+                aValue = a.querySelector('strong').textContent;
+                bValue = b.querySelector('strong').textContent;
+                return aValue.localeCompare(bValue);
+                
+            case 'downloads':
+                aValue = parseInt(a.cells[4].textContent);
+                bValue = parseInt(b.cells[4].textContent);
+                return bValue - aValue;
+                
+            case 'rating':
+                aValue = parseFloat(a.querySelector('.rating small').textContent.match(/\((.*?)\)/)[1]);
+                bValue = parseFloat(b.querySelector('.rating small').textContent.match(/\((.*?)\)/)[1]);
+                return bValue - aValue;
+                
+            case 'oldest':
+                aValue = new Date(a.cells[6].textContent);
+                bValue = new Date(b.cells[6].textContent);
+                return aValue - bValue;
+                
+            default: // newest
+                aValue = new Date(a.cells[6].textContent);
+                bValue = new Date(b.cells[6].textContent);
+                return bValue - aValue;
+        }
+    });
+    
+    // Re-append sorted rows
+    rows.forEach(row => tbody.appendChild(row));
+}
+
+function resetFilters() {
+    document.getElementById('searchInput').value = '';
+    document.getElementById('statusFilter').value = '';
+    document.getElementById('categoryFilter').value = '';
+    document.getElementById('sortFilter').value = 'newest';
+    filterPlugins();
+}
+
+// Plugin actions
+function viewPlugin(pluginId) {
+    fetch(`/admin/plugin/${pluginId}/details`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                displayPluginDetails(data.plugin);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showNotification('Failed to load plugin details', 'danger');
+        });
+}
+
+function displayPluginDetails(plugin) {
+    const detailsDiv = document.getElementById('pluginDetails');
+    
+    let html = `
+        <div class="plugin-details">
+            <div class="row">
+                <div class="col-md-4 text-center">
+                    <div class="plugin-icon-large mb-3">
+                        <i class="fas fa-puzzle-piece fa-4x"></i>
+                    </div>
+                    <h4>${plugin.name}</h4>
+                    <p class="text-muted">v${plugin.version}</p>
+                </div>
+                <div class="col-md-8">
+                    <h6>Description</h6>
+                    <p>${plugin.description || 'No description'}</p>
+                    
+                    <div class="row mt-3">
+                        <div class="col-6">
+                            <strong>Author:</strong> ${plugin.author || 'Unknown'}
+                        </div>
+                        <div class="col-6">
+                            <strong>Category:</strong> ${plugin.category || 'General'}
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Downloads:</strong> ${plugin.download_count}
+                        </div>
+                        <div class="col-6">
+                            <strong>Executions:</strong> ${plugin.execution_count}
+                        </div>
+                    </div>
+                    
+                    <div class="row mt-2">
+                        <div class="col-6">
+                            <strong>Status:</strong> 
+                            ${plugin.is_approved ? '<span class="badge bg-success">Approved</span>' : 
+                              plugin.is_archived ? '<span class="badge bg-secondary">Archived</span>' : 
+                              '<span class="badge bg-warning">Pending</span>'}
+                        </div>
+                        <div class="col-6">
+                            <strong>Rating:</strong> ${plugin.rating}/5 (${plugin.review_count} reviews)
+                        </div>
+                    </div>
+                    
+                    ${plugin.requirements && plugin.requirements.length > 0 ? `
+                    <h6 class="mt-3">Requirements</h6>
+                    <div class="requirements">
+                        ${plugin.requirements.map(req => `<span class="badge bg-info me-1">${req}</span>`).join('')}
+                    </div>
+                    ` : ''}
+                    
+                    ${plugin.api_keys_required && plugin.api_keys_required.length > 0 ? `
+                    <h6 class="mt-3">Required API Keys</h6>
+                    <div class="api-keys">
+                        ${plugin.api_keys_required.map(key => `<span class="badge bg-warning me-1">${key}</span>`).join('')}
+                    </div>
+                    ` : ''}
+                    
+                    <div class="mt-3">
+                        <strong>Uploaded:</strong> ${new Date(plugin.created_at).toLocaleDateString()}
+                    </div>
+                    
+                    ${plugin.updated_at ? `
+                    <div class="mt-1">
+                        <strong>Last Updated:</strong> ${new Date(plugin.updated_at).toLocaleDateString()}
+                    </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    detailsDiv.innerHTML = html;
+    const modal = new bootstrap.Modal(document.getElementById('pluginModal'));
+    modal.show();
+}
+
+function approvePlugin(pluginId) {
+    if (!confirm('Approve this plugin?')) return;
+    
+    fetch(`/admin/plugin/${pluginId}/approve`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Plugin approved successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.error || 'Approval failed', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Approval failed', 'danger');
+    });
+}
+
+function togglePlugin(pluginId) {
+    fetch(`/admin/plugin/${pluginId}/toggle`, {
+        method: 'POST'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification(data.message, 'info');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.error || 'Action failed', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Action failed', 'danger');
+    });
+}
+
+function deletePlugin(pluginId) {
+    currentPluginId = pluginId;
+    const modal = new bootstrap.Modal(document.getElementById('deleteModal'));
+    modal.show();
+}
+
+document.getElementById('confirmDelete').addEventListener('click', function() {
+    fetch(`/admin/plugin/${currentPluginId}/delete`, {
+        method: 'DELETE'
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showNotification('Plugin deleted successfully!', 'success');
+            setTimeout(() => location.reload(), 1000);
+        } else {
+            showNotification(data.error || 'Deletion failed', 'danger');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showNotification('Deletion failed', 'danger');
+    });
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('deleteModal'));
+    modal.hide();
+});
+
+// Initialize tooltips
+document.addEventListener('DOMContentLoaded', function() {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
+        return new bootstrap.Tooltip(tooltipTriggerEl);
+    });
+});
+</script>
+
+<style>
+.plugin-manager-container {
+    animation: fadeIn 0.5s ease;
+}
+
+.plugin-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+}
+
+.plugin-icon-large {
+    width: 100px;
+    height: 100px;
+    border-radius: 20px;
+    background: var(--gradient-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    margin: 0 auto;
+}
+
+.rating {
+    color: #ffc107;
+}
+
+.rating .text-muted {
+    color: var(--text-muted) !important;
+}
+
+.plugin-details h6 {
+    color: var(--primary);
+    margin-top: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.btn-group .btn {
+    border-radius: 5px !important;
+    margin-right: 3px;
+}
+
+.table-hover tbody tr:hover {
+    background: var(--bg-card-hover);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+</style>
+{% endblock %}
