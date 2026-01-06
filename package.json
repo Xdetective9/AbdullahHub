@@ -1,0 +1,22 @@
+{
+  "name": "abdullahhub",
+  "version": "1.0.0",
+  "description": "AbdullahHub - Universal Plugin Platform",
+  "scripts": {
+    "start": "gunicorn app:app",
+    "dev": "python app.py",
+    "setup": "python setup.py",
+    "test": "pytest",
+    "build": "echo 'Python app - no build step required'"
+  },
+  "engines": {
+    "node": ">=14",
+    "npm": ">=6"
+  },
+  "keywords": ["plugin", "platform", "python", "flask"],
+  "author": "AbdullahHub",
+  "license": "MIT",
+  "dependencies": {
+    "node": ">=14"
+  }
+}
