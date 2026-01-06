@@ -1,4 +1,4 @@
-# Core
+# Core Dependencies
 Flask==2.3.3
 Flask-SQLAlchemy==3.0.5
 Flask-Login==0.6.2
@@ -12,17 +12,17 @@ Flask-Migrate==4.0.4
 # Database
 SQLAlchemy==2.0.19
 alembic==1.12.0
-psycopg2-binary==2.9.7  # For PostgreSQL
+psycopg2-binary==2.9.7
 
-# Security
+# Security - Use pre-built wheels
+cryptography==41.0.7  # This version has pre-built wheels
 bcrypt==4.0.1
-cryptography==41.0.5
 PyJWT==2.8.0
 python-dotenv==1.0.0
 
 # File Processing
 Pillow==10.0.1
-python-magic==0.4.27
+python-magic-bin==0.4.14  # Use binary version
 filetype==1.2.0
 
 # APIs
@@ -51,8 +51,8 @@ email-validator==2.0.0
 psutil==5.9.6
 
 # For RemoveBG Plugin
-removebg==1.0.2  # Optional - we'll use direct API calls
+removebg==1.0.2
 
-# Testing
+# Testing (optional)
 pytest==7.4.2
 pytest-cov==4.1.0
