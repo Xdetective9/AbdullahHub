@@ -737,3 +737,24 @@ if __name__ == '__main__':
         port=int(os.environ.get('PORT', 5000)),
         debug=os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
     )
+# Deployment compatibility
+if __name__ == '__main__':
+    port = int(os.environ.get('PORT', 5000))
+    
+    # Check if we're in production
+    if os.environ.get('FLASK_ENV') == 'production':
+        # Production settings
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=False,
+            threaded=True
+        )
+    else:
+        # Development settings
+        app.run(
+            host='0.0.0.0',
+            port=port,
+            debug=True,
+            threaded=True
+    )
