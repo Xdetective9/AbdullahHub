@@ -2,28 +2,27 @@
 
 echo "🚀 Setting up AbdullahHub - Ultimate Plugin Platform"
 
-# Check Python version
-python_version=$(python3 --version 2>&1 | cut -d' ' -f2)
-echo "Python version: $python_version"
+# Check if Python 3.11 is installed
+if ! command -v python3.11 &> /dev/null; then
+    echo "⚠️  Python 3.11 not found. Please install Python 3.11 first."
+    echo "For Ubuntu/Debian: sudo apt install python3.11 python3.11-venv"
+    echo "For macOS: brew install python@3.11"
+    exit 1
+fi
 
-# Create virtual environment
-echo "📦 Creating virtual environment..."
-python3 -m venv venv
+# Create virtual environment with Python 3.11
+echo "📦 Creating virtual environment with Python 3.11..."
+python3.11 -m venv venv
 
 # Activate virtual environment
 source venv/bin/activate
 
-# Upgrade pip and setuptools
-echo "📥 Upgrading pip and setuptools..."
+# Upgrade pip
 pip install --upgrade pip setuptools wheel
 
-# Install system dependencies first
-echo "📦 Installing system dependencies..."
-pip install wheel setuptools
-
-# Install requirements in order
+# Install requirements
 echo "📥 Installing dependencies..."
-pip install -r requirements.txt --no-build-isolation
+pip install -r requirements.txt
 
 # Create necessary directories
 echo "📁 Creating directory structure..."
@@ -34,63 +33,33 @@ mkdir -p plugins/installed
 mkdir -p plugins/temp
 mkdir -p plugins/marketplace
 mkdir -p static/images
+mkdir -p templates/emails
+mkdir -p templates/admin
+mkdir -p templates/auth
+mkdir -p templates/plugins
+mkdir -p templates/errors
 
 # Set permissions
 chmod -R 755 storage
 chmod -R 755 plugins
 
-# Initialize database
-echo "💾 Initializing database..."
-python -c "
-from app import app, db
-with app.app_context():
-    db.create_all()
-    print('Database created successfully!')
-"
-
-# Create admin user
-echo "👑 Creating admin user..."
-python -c "
-from app import app, db
-from core.models.user import User
-with app.app_context():
-    if not User.query.filter_by(email='admin@abdullahhub.com').first():
-        admin = User(
-            username='admin',
-            email='admin@abdullahhub.com',
-            is_verified=True,
-            is_admin=True
-        )
-        admin.set_password('admin123')
-        db.session.add(admin)
-        db.session.commit()
-        print('Admin user created:')
-        print('Email: admin@abdullahhub.com')
-        print('Password: admin123')
-        print('⚠️ Please change the password immediately!')
-    else:
-        print('Admin user already exists')
-"
-
-# Copy environment file
+# Copy template files if they don't exist
 if [ ! -f .env ]; then
     echo "📋 Copying environment template..."
     cp .env.example .env
     echo "✅ Please edit .env file with your configuration"
 fi
 
-# Generate secret key
+# Generate secret key if not set
 if grep -q "dev-secret-key-change-in-production" .env 2>/dev/null; then
-    secret_key=$(python -c "import secrets; print(secrets.token_hex(32))")
-    sed -i "s/dev-secret-key-change-in-production/$secret_key/" .env
+    secret_key=$(python3 -c "import secrets; print(secrets.token_hex(32))")
+    sed -i.bak "s/dev-secret-key-change-in-production/$secret_key/" .env
     echo "🔑 Generated secure secret key"
 fi
 
-# Create initial plugins
-echo "🔌 Creating sample plugins..."
+# Create RemoveBG plugin
+echo "🔌 Creating RemoveBG plugin..."
 mkdir -p plugins/installed/removebg
-
-# Create simple removebg plugin without complex dependencies
 cat > plugins/installed/removebg/plugin.py << 'EOF'
 """
 Remove Background Plugin for AbdullahHub
@@ -103,21 +72,16 @@ PLUGIN_VERSION = "1.0.0"
 PLUGIN_AUTHOR = "AbdullahHub"
 PLUGIN_CATEGORY = "Image Processing"
 
+import requests
 import base64
+from io import BytesIO
+from PIL import Image
 import os
 
 def execute(context):
     """
     Execute the Remove Background plugin
-    
-    Required in context:
-    - api_key: Remove.bg API key
-    - input.image: Base64 encoded image or URL
-    
-    Returns:
-    - Base64 encoded image with background removed
     """
-    
     api_key = context.get('api_key') or os.environ.get('REMOVEBG_API_KEY')
     if not api_key:
         return {
@@ -135,24 +99,100 @@ def execute(context):
         }
     
     try:
-        # Simulate API call for demo
-        # In production, this would call the real API
-        return {
-            "success": True,
-            "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/5+hHgAHggJ/PchI7wAAAABJRU5ErkJggg==",
-            "format": "png",
-            "width": 100,
-            "height": 100,
-            "credits_charged": "1",
-            "message": "Background removed successfully! (Demo mode)"
-        }
+        if image_data.startswith('http'):
+            response = requests.get(image_data)
+            if response.status_code != 200:
+                return {
+                    "success": False,
+                    "error": f"Failed to download image: {response.status_code}"
+                }
+            image_bytes = response.content
+        else:
+            if ',' in image_data:
+                image_data = image_data.split(',')[1]
+            image_bytes = base64.b64decode(image_data)
+        
+        result = remove_background(image_bytes, api_key)
+        
+        if result.get('success'):
+            return {
+                "success": True,
+                "image": result['image'],
+                "format": result['format'],
+                "width": result['width'],
+                "height": result['height'],
+                "credits_charged": result['credits_charged'],
+                "message": "Background removed successfully!"
+            }
+        else:
+            return {
+                "success": False,
+                "error": result.get('error', 'Unknown error')
+            }
             
     except Exception as e:
         return {
             "success": False,
             "error": f"Processing failed: {str(e)}"
         }
+
+def remove_background(image_bytes, api_key):
+    try:
+        url = "https://api.remove.bg/v1.0/removebg"
+        headers = {'X-Api-Key': api_key}
+        
+        files = {
+            'image_file': ('image.png', image_bytes),
+            'size': (None, 'auto'),
+            'type': (None, 'auto'),
+        }
+        
+        response = requests.post(url, headers=headers, files=files)
+        
+        if response.status_code == 200:
+            result_bytes = response.content
+            img_base64 = base64.b64encode(result_bytes).decode('utf-8')
+            img = Image.open(BytesIO(result_bytes))
+            
+            credits_charged = response.headers.get('X-Credits-Charged', 'Unknown')
+            
+            return {
+                "success": True,
+                "image": f"data:image/png;base64,{img_base64}",
+                "format": img.format,
+                "width": img.width,
+                "height": img.height,
+                "credits_charged": credits_charged
+            }
+        else:
+            error_msg = f"API Error: {response.status_code}"
+            try:
+                error_data = response.json()
+                if 'errors' in error_data:
+                    error_msg = error_data['errors'][0]['title']
+            except:
+                pass
+            
+            return {
+                "success": False,
+                "error": error_msg
+            }
+            
+    except requests.exceptions.RequestException as e:
+        return {
+            "success": False,
+            "error": f"Network error: {str(e)}"
+        }
 EOF
+
+# Create __init__.py files
+touch plugins/installed/__init__.py
+touch plugins/__init__.py
+touch core/__init__.py
+touch core/plugin_system/__init__.py
+touch core/security/__init__.py
+touch core/utils/__init__.py
+touch core/models/__init__.py
 
 echo "✅ Setup complete!"
 echo ""
@@ -161,11 +201,13 @@ echo "1. Activate virtual environment: source venv/bin/activate"
 echo "2. Run: python app.py"
 echo "3. Open: http://localhost:5000"
 echo ""
-echo "🔑 Admin login:"
+echo "🔑 Default Admin login (change after first login):"
 echo "   Email: admin@abdullahhub.com"
 echo "   Password: admin123"
 echo ""
-echo "⚠️  Remember to:"
-echo "   - Change admin password"
-echo "   - Update .env file with your settings"
-echo "   - Add your Remove.bg API key: xv5aoeuirxTNZBYS5KykZZEK"
+echo "📧 Configure email in .env file:"
+echo "   MAIL_USERNAME=your-email@gmail.com"
+echo "   MAIL_PASSWORD=hevl qfar pmjj siws"
+echo ""
+echo "🔑 Add your Remove.bg API key:"
+echo "   REMOVEBG_API_KEY=xv5aoeuirxTNZBYS5KykZZEK"
